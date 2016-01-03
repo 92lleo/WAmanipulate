@@ -2,12 +2,16 @@ package io.kuenzler.android.whatsappmanipulate;
 
 import android.util.Log;
 
-import java.io.DataOutputStream;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 
 /**
+ * Manages all data moving and providings.
  *
+ * @author Leonhard Künzler
+ * @version 0.1
  */
 public class DataManager {
 
@@ -15,14 +19,16 @@ public class DataManager {
     private final MainActivity main;
 
     /**
-     * @param main
+     * Creates new DataManager.
+     *
+     * @param main MainActivity object
      */
     public DataManager(MainActivity main) {
         this.main = main;
     }
 
     /**
-     *
+     * Sets environment paths for data partitions.
      */
     public void preparePaths() {
         /* String state = Environment.getExternalStorageState();
@@ -41,57 +47,58 @@ public class DataManager {
         // sdPath = activity.getContext().getexternalbla;
         // waPath = activity.getContext().getFilesDir();
         // ownPath = activity.getContext().getownbla;
-        //TODO: do not hardcode
+        //TODO: do not hardcode, only for testing
+        String dbpath = "/databases/msgstore.db";
         sdPath = "/storage/emulated/0/msgstore.db";
-        waPath = "/data/data/com.whatsapp/databases/msgstore.db";
-        ownPath = "/data/data/io.kuenzler.android.whatsappmanipulate/msgstore.db";
+        waPath = "/data/data/com.whatsapp" + dbpath;
+        ownPath = "/data/data/io.kuenzler.android.whatsappmanipulate" + dbpath;
     }
 
     /**
-     * @param direction not used yet
+     * Copies wa database.
+     * Copies the whatsapp database from or to whatsapp/whatsmanipulate directory
+     *
+     * @param direction 1: from wa to wm, 2 other direction
      */
-    public void copyWAdata(int direction) {
-        if (!checkDirs()) {
-            //  return;
+    public void copyWAdatabase(int direction) {
+        //prepare commands
+        String command;
+        if (direction == 1) {
+            command = "cat " + waPath + " > " + ownPath;
+        } else if (direction == 2) {
+            command = "cat " + ownPath + " > " + waPath;
+        } else {
+            //two way street
+            throw new IllegalArgumentException("direction has to be 1 or 2, was " + direction);
         }
-        String[] cmds = {"cat " + waPath + " > " + sdPath,
-                "cat " + waPath + " > " + ownPath,
-        };
-        runAsRoot(cmds);
+        if (!checkDirs()) {
+            //TODO: needed? //return;
+        }
+        //copy file
+        Utilities.runShellCommandAsRoot(new String[]{command});
+        //check if file is empty (copy error)
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(ownPath));
+            if (br.readLine() == null) {
+                main.toast("Copied db is empty:( (dir " + direction + ")");
+            }
+        } catch (IOException e) {
+            Log.e("SU Error", "Error while reading " + ownPath, e);
+            e.printStackTrace();
+        }
     }
 
     /**
-     * @return
+     * Checks if directories exist.
+     *
+     * @return true if all exist
      */
     public boolean checkDirs() {
         boolean result = true;
         //result = new File(sdPath).exists();
         result = new File(waPath).exists() && result;
         //result = new File(ownPath).exists() && result;
-        main.toast(String.valueOf(result));
+        main.toast(String.valueOf(result)); //TODO: delete
         return result;
-    }
-
-    /**
-     * @param cmds
-     */
-    protected void runAsRoot(String[] cmds) {
-        try {
-            Process p = Runtime.getRuntime().exec("su");
-            DataOutputStream os = new DataOutputStream(p.getOutputStream());
-            for (String tmpCmd : cmds) {
-                os.writeBytes(tmpCmd + "\n");
-            }
-            os.writeBytes("exit\n");
-            os.flush();
-            main.toast("worked");
-        } catch (IOException e) {
-            Log.e("su", e.toString(), e);
-            main.toast("ex: " + e.toString());
-        } catch (Exception e) {
-            //no root?
-            Log.e("su", e.toString(), e);
-            main.toast("ex: " + e.toString());
-        }
     }
 }
